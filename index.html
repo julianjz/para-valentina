@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hola 💗</title>
+  <style>
+    body {
+      background: #f9aae3;
+      color: #5a1d4a;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      min-height: 100vh; margin: 0; padding: 20px;
+      box-sizing: border-box; text-align: center;
+      transition: background 2s, color 2s;
+    }
+    body.oscuro { background: #000; color: #fff; }
+
+    input {
+      font-size: 1.2rem; padding: 12px 18px; border: none;
+      border-radius: 999px; outline: none; text-align: center;
+      margin: 10px 0; width: 240px; max-width: 80%;
+    }
+    button {
+      font-size: 1.1rem; padding: 12px 28px; border: none;
+      border-radius: 999px; background: #fff; color: #c2188f;
+      cursor: pointer; margin: 10px; box-shadow: 0 4px 10px rgba(0,0,0,.15);
+      transition: transform .15s;
+    }
+    button:hover { transform: scale(1.06); }
+
+    #mensaje { margin-top: 20px; position: relative; z-index: 2; }
+
+    /* Mensajes con fade-in */
+    .msg { opacity: 0; animation: aparecer 1s forwards; font-size: 1.6rem; margin: 14px 0; }
+    @keyframes aparecer { to { opacity: 1; } }
+
+    /* Corazones */
+    .corazon { position: fixed; bottom: -40px; animation: subir linear forwards; pointer-events: none; z-index: 1; }
+    @keyframes subir { to { transform: translateY(-110vh); opacity: 0; } }
+
+    /* Lluvia */
+    .gota {
+      position: fixed; top: -30px; width: 2px; height: 20px;
+      background: rgba(255,255,255,.5); pointer-events: none;
+      animation: caer linear forwards; z-index: 1;
+    }
+    @keyframes caer { to { transform: translateY(110vh); } }
+
+    .porque { font-size: 2.5rem; opacity: 0; animation: aparecer 2s forwards; }
+
+    .meme {
+      max-width: 280px; width: 80%; border-radius: 12px; margin: 10px;
+      opacity: 0; animation: aparecer 1s forwards;
+    }
+    #floreria { display:none; position:relative; z-index:2; width:min(100%,560px); margin:22px auto; }
+    #floreria h2 { font-size:1.55rem; }
+    .opciones { display:flex; justify-content:center; flex-wrap:wrap; gap:8px; }
+    .opciones button { font-size:1rem; padding:11px 16px; margin:5px; }
+    .opciones button.activa { background:#b91c76; color:white; }
+    #lienzo { width:min(100%,390px); aspect-ratio:1; margin:18px auto; background:#fff7fc; border-radius:22px; box-shadow:0 8px 30px #9b226032; overflow:hidden; }
+    #lienzo svg { width:100%; height:100%; display:block; }
+    #descargar { display:none; background:#b91c76; color:white; }
+    #reiniciar { position:relative; z-index:3; display:none; }
+    .trazo { fill:none; stroke-linecap:round; stroke-linejoin:round; }
+    @media(max-width:420px) { .msg { font-size:1.3rem; } .opciones button { padding:10px 12px; } }
+  </style>
+</head>
+<body>
+  <h1 id="titulo">¿Cómo te llamas?</h1>
+  <input id="nombre" placeholder="Tu nombre" autocomplete="off">
+  <button id="btn">Entrar</button>
+  <button id="siguiente" style="display:none">Siguiente 💗</button>
+  <div id="mensaje"></div>
+  <section id="floreria" aria-label="Elige tu flor">
+    <h2>Una flor para ti, Valentina 💐</h2>
+    <p>Escoge tu favorita y mira cómo florece ✨</p>
+    <div class="opciones">
+      <button type="button" data-flor="rosa">🌹 Rosa</button>
+      <button type="button" data-flor="tulipan">🌷 Tulipán</button>
+      <button type="button" data-flor="girasol">🌻 Girasol</button>
+    </div>
+    <div id="lienzo" aria-live="polite"></div>
+    <button id="descargar" type="button">Descargar mi flor 💗</button>
+  </section>
+  <button id="reiniciar" type="button">↩ Volver al inicio</button>
+
+  <script>
+    const mensajes = [
+      "Hola, Valentina 💗",
+      "Te quiero muchísimo",
+      "Eres la mejor diseñadora del mundo",
+      "Y una de mis personas favoritas",
+      "Gracias por ser como eres",
+      "Esto lo hice solo para ti",
+      "Como usted ninguna",
+      "Por siempre nacho 💗"
+    ];
+
+    const memesJuliana = [
+      "memes/soldado.jpg",
+      "memes/terror.png",
+      "memes/gato-oscuro.png",
+      "memes/nino-cruz.png",
+      "memes/gato-asustado.png"
+    ];
+
+    const normalizar = (t) =>
+      t.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+    let indice = 0;
+    let intervalos = [];
+    let temporizadores = [];
+    let animacionActual = 0;
+    let svgActual = null;
+    let florActual = null;
+    const programar = (fn, ms) => { const id = setTimeout(fn, ms); temporizadores.push(id); return id; };
+    const repetir = (fn, ms) => { const id = setInterval(fn, ms); intervalos.push(id); return id; };
+
+    function ocultarEntrada() {
+      document.getElementById("btn").style.display = "none";
+      document.getElementById("nombre").style.display = "none";
+    }
+
+    function mostrarSiguiente() {
+      const salida = document.getElementById("mensaje");
+      if (indice >= mensajes.length) return;
+      const p = document.createElement("p");
+      p.textContent = mensajes[indice];
+      p.className = "msg";
+      salida.appendChild(p);
+      indice++;
+      if (indice === mensajes.length) {
+        document.getElementById("siguiente").style.display = "none";
+        programar(() => {
+          document.getElementById("floreria").style.display = "block";
+          document.getElementById("reiniciar").style.display = "inline-block";
+          document.getElementById("floreria").scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 1200);
+      }
+    }
+
+    function lluviaDeCorazones() {
+      repetir(() => {
+        const c = document.createElement("span");
+        c.className = "corazon";
+        c.textContent = "💗";
+        c.style.left = Math.random() * 100 + "vw";
+        c.style.fontSize = 16 + Math.random() * 24 + "px";
+        c.style.animationDuration = 4 + Math.random() * 4 + "s";
+        document.body.appendChild(c);
+        setTimeout(() => c.remove(), 8000);
+      }, 400);
+    }
+
+    function mostrarMemes() {
+      const salida = document.getElementById("mensaje");
+      memesJuliana.forEach((src, i) => {
+        const img = document.createElement("img");
+        img.src = src;
+        img.className = "meme";
+        img.style.animationDelay = i * 1.2 + "s";
+        salida.appendChild(img);
+      });
+    }
+
+    function lluvia() {
+      repetir(() => {
+        const g = document.createElement("div");
+        g.className = "gota";
+        g.style.left = Math.random() * 100 + "vw";
+        g.style.animationDuration = 0.5 + Math.random() * 0.5 + "s";
+        document.body.appendChild(g);
+        setTimeout(() => g.remove(), 1200);
+      }, 40);
+    }
+
+    function modoJuliana() {
+      document.body.classList.add("oscuro");
+      document.getElementById("titulo").style.display = "none";
+      lluvia();
+      document.getElementById("reiniciar").style.display = "inline-block";
+      const salida = document.getElementById("mensaje");
+      programar(() => {
+        salida.innerHTML = '<h2 class="porque">¿por qué 🥺?</h2>';
+      }, 2500);
+      programar(mostrarMemes, 5500);
+    }
+
+    function entrar() {
+      const n = normalizar(document.getElementById("nombre").value);
+      if (!n) return;
+
+      if (n === "valentina") {
+        ocultarEntrada();
+        document.getElementById("titulo").style.display = "none";
+        document.getElementById("siguiente").style.display = "inline-block";
+        lluviaDeCorazones();
+        mostrarSiguiente();
+      } else if (n === "juliana") {
+        ocultarEntrada();
+        modoJuliana();
+      } else {
+        const salida = document.getElementById("mensaje");
+        salida.innerHTML = '<p class="msg">Hola 😊 Esta página no es para ti... ¡pero que tengas un lindo día!</p>';
+        document.getElementById("reiniciar").style.display = "inline-block";
+      }
+    }
+
+    // Dibujos vectoriales propios: los trazos se revelan uno a uno.
+    const trazo = (d, color, ancho=4, relleno="none") =>
+      `<path class="trazo" d="${d}" stroke="${color}" stroke-width="${ancho}" data-relleno="${relleno}"/>`;
+    const elipse = (cx,cy,rx,ry,rot,color,relleno) =>
+      `<ellipse class="trazo" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" transform="rotate(${rot} ${cx} ${cy})" stroke="${color}" stroke-width="3" data-relleno="${relleno}" fill="none"/>`;
+    function dibujarFlor(tipo) {
+      let partes = '';
+      const verde='#348b59';
+      if(tipo === 'rosa') {
+        partes += trazo('M199 288 C193 246 205 210 199 149',verde,7);
+        partes += trazo('M197 244 Q155 208 135 228 Q161 258 197 251',verde,3,'#7bcf91');
+        partes += trazo('M200 220 Q246 186 265 208 Q244 236 200 232',verde,3,'#7bcf91');
+        partes += trazo('M198 175 C153 169 140 134 159 102 C172 76 207 76 222 97 C251 92 266 127 246 155 C236 174 216 183 198 175 Z','#b72258',4,'#f15a8b');
+        partes += trazo('M162 111 Q187 126 198 169 Q214 124 242 111','#a8154b',3,'#ff9db9');
+        partes += trazo('M175 94 Q192 107 199 133 Q209 104 226 96','#a8154b',3,'#ffb4ca');
+        partes += trazo('M181 124 Q201 105 219 124 Q222 143 200 151 Q185 147 190 135 Q199 125 207 134','#a8154b',3);
+      } else if(tipo === 'tulipan') {
+        partes += trazo('M200 292 Q204 229 200 155',verde,7);
+        partes += trazo('M202 242 Q159 196 132 218 Q151 258 201 258',verde,3,'#79c88a');
+        partes += trazo('M201 224 Q243 181 267 207 Q246 240 201 239',verde,3,'#79c88a');
+        partes += trazo('M161 120 Q156 90 173 73 Q189 92 200 111 Q212 88 228 73 Q245 91 239 120 Q241 162 200 175 Q159 162 161 120 Z','#c83c81',4,'#ff8cbd');
+        partes += trazo('M173 74 Q174 126 200 174 Q226 126 228 74','#b82b73',3,'#ffc2d9');
+      } else {
+        partes += trazo('M200 294 Q199 231 200 163',verde,7);
+        partes += trazo('M199 251 Q152 206 126 226 Q157 262 199 261',verde,3,'#8bcf78');
+        partes += trazo('M201 225 Q249 185 272 208 Q247 241 201 239',verde,3,'#8bcf78');
+        for(let i=0;i<12;i++) {
+          const a=i*Math.PI/6, x=200+Math.sin(a)*57, y=125-Math.cos(a)*57;
+          partes += elipse(x,y,16,34,i*30,'#d99519','#ffcb43');
+        }
+        partes += `<circle class="trazo" cx="200" cy="125" r="37" stroke="#89501f" stroke-width="4" data-relleno="#75401f" fill="none"/>`;
+        for(let i=0;i<17;i++) {
+          const a=i*2.39996, r=7+Math.sqrt(i)*6;
+          partes += `<circle cx="${200+Math.cos(a)*r}" cy="${125+Math.sin(a)*r}" r="2.4" fill="#f4c36b" opacity="0" class="semilla"/>`;
+        }
+      }
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 360" role="img" aria-label="${tipo}"><rect width="400" height="360" fill="#fff7fc"/><text x="200" y="39" text-anchor="middle" font-family="Segoe UI, sans-serif" font-size="20" fill="#a32970">Para Valentina 💗</text>${partes}<text x="200" y="334" text-anchor="middle" font-family="Segoe UI, sans-serif" font-size="16" fill="#a32970">Una flor solo para ti ✨</text></svg>`;
+    }
+    function seleccionarFlor(tipo) {
+      animacionActual++;
+      const token=animacionActual;
+      florActual=tipo;
+      document.querySelectorAll('[data-flor]').forEach(b=>b.classList.toggle('activa',b.dataset.flor===tipo));
+      document.getElementById('descargar').style.display='none';
+      document.getElementById('lienzo').innerHTML=dibujarFlor(tipo);
+      svgActual=document.querySelector('#lienzo svg');
+      const trazos=[...svgActual.querySelectorAll('.trazo')];
+      trazos.forEach(t=>{
+        const largo=t.getTotalLength ? t.getTotalLength() : 300;
+        t.style.strokeDasharray=largo;
+        t.style.strokeDashoffset=largo;
+        t.style.fill='none';
+        t.style.transition='none';
+      });
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{
+        if(token!==animacionActual)return;
+        trazos.forEach((t,i)=>{
+          t.style.transition=`stroke-dashoffset 0.65s ease ${i*.16}s, fill .55s ease ${i*.16+.48}s`;
+          t.style.strokeDashoffset='0';
+          t.style.fill=t.dataset.relleno||'none';
+        });
+        svgActual.querySelectorAll('.semilla').forEach((t,i)=>{
+          t.style.transition=`opacity .3s ease ${trazos.length*.16+i*.04}s`;
+          t.style.opacity='1';
+        });
+      }));
+      programar(()=>{if(token===animacionActual)document.getElementById('descargar').style.display='inline-block';},Math.max(1300,trazos.length*160+1100));
+    }
+    function descargarFlor() {
+      if(!svgActual || !florActual)return;
+      const copia=svgActual.cloneNode(true);
+      copia.querySelectorAll('.trazo').forEach(t=>{
+        t.removeAttribute('style');
+        t.setAttribute('fill',t.dataset.relleno||'none');
+        t.removeAttribute('stroke-dasharray');
+        t.removeAttribute('stroke-dashoffset');
+      });
+      copia.querySelectorAll('.semilla').forEach(t=>t.setAttribute('opacity','1'));
+      const contenido=new XMLSerializer().serializeToString(copia);
+      const url=URL.createObjectURL(new Blob([contenido],{type:'image/svg+xml;charset=utf-8'}));
+      const imagen=new Image();
+      imagen.onload=()=>{
+        const canvas=document.createElement('canvas');canvas.width=1200;canvas.height=1080;
+        const ctx=canvas.getContext('2d');ctx.drawImage(imagen,0,0,1200,1080);
+        URL.revokeObjectURL(url);
+        canvas.toBlob(blob=>{
+          if(!blob)return;
+          const enlace=document.createElement('a');const archivo=URL.createObjectURL(blob);
+          enlace.href=archivo;enlace.download=`flor-para-valentina-${florActual}.png`;
+          document.body.appendChild(enlace);enlace.click();enlace.remove();
+          programar(()=>URL.revokeObjectURL(archivo),3000);
+        },'image/png');
+      };
+      imagen.onerror=()=>{URL.revokeObjectURL(url);alert('No se pudo generar la imagen. Inténtalo otra vez.');};
+      imagen.src=url;
+    }
+    function volverInicio() {
+      animacionActual++;
+      intervalos.forEach(clearInterval);intervalos=[];
+      temporizadores.forEach(clearTimeout);temporizadores=[];
+      document.querySelectorAll('.corazon,.gota').forEach(n=>n.remove());
+      document.body.classList.remove('oscuro');
+      indice=0;svgActual=null;florActual=null;
+      document.getElementById('titulo').style.display='block';
+      document.getElementById('nombre').style.display='inline-block';
+      document.getElementById('nombre').value='';
+      document.getElementById('btn').style.display='inline-block';
+      document.getElementById('siguiente').style.display='none';
+      document.getElementById('mensaje').innerHTML='';
+      document.getElementById('floreria').style.display='none';
+      document.getElementById('lienzo').innerHTML='';
+      document.getElementById('descargar').style.display='none';
+      document.getElementById('reiniciar').style.display='none';
+      document.querySelectorAll('[data-flor]').forEach(b=>b.classList.remove('activa'));
+      window.scrollTo({top:0,behavior:'smooth'});
+    }
+    document.querySelectorAll('[data-flor]').forEach(b=>b.addEventListener('click',()=>seleccionarFlor(b.dataset.flor)));
+    document.getElementById('descargar').addEventListener('click',descargarFlor);
+    document.getElementById('reiniciar').addEventListener('click',volverInicio);
+    document.getElementById("btn").addEventListener("click", entrar);
+    document.getElementById("nombre").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") entrar();
+    });
+    document.getElementById("siguiente").addEventListener("click", mostrarSiguiente);
+  </script>
+</body>
+</html>
